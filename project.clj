@@ -29,7 +29,7 @@
 
   :plugins [[lein-figwheel "0.5.18"]
             [lein-cljsbuild "1.1.7"]
-            
+
             [lein-ancient "0.6.15"]
             [lein-bikeshed "0.5.2"]
             [lein-kibit "0.1.6"]
@@ -64,8 +64,9 @@
                      :output-to "resources/public/js/compiled/example.js"
                      :output-dir "resources/public/js/compiled/out"
                      :source-map-timestamp true
-                     :npm-deps {:capitalize "2.0.0"}
-                     :install-deps true}}
+                     ;; :npm-deps {:capitalize "2.0.0"}
+                     ;; :install-deps true
+                     }}
 
     :reframe {:source-paths ["src/cljs_reframe"]
               :figwheel {:open-urls ["http://localhost:3449/reframe"]
@@ -89,9 +90,9 @@
                    :repl-options {:nrepl-middleware
                                   [cider.piggieback/wrap-cljs-repl]}}
 
-              :reframe {:dependencies [[binaryage/devtools "0.9.10"]
-                                                        [figwheel-sidecar "0.5.18"]
-                                                        [cider/piggieback "0.4.1"]]
-                                         :source-paths ["src/cljs_reframe"]
-                                         :repl-options {:nrepl-middleware
-                                                        [cider.piggieback/wrap-cljs-repl]}}})
+             :reframe {:dependencies [[binaryage/devtools "0.9.10"]
+                                      [figwheel-sidecar "0.5.18"]
+                                      [cider/piggieback "0.4.1"]]
+                       :source-paths ["src/cljs_reframe"]
+                       :repl-options {:nrepl-middleware
+                                      [cider.piggieback/wrap-cljs-repl]}}})

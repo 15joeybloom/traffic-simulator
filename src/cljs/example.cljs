@@ -12,33 +12,20 @@
                       "Starting App!"
                       "\n----------------------\n"))
 
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Clojurepalooza Instructions!
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; We will be making the game snake in today's Clojurepalooza
-
-;; Here is a template that you can follow - see how much of the game you
-;; can code up in this session!
-
 (def clicks (reagent/atom 0))
+(def dot-position (reagent/atom [0 0]))
 
 (defn dot []
-  ;; 1) Fill me in to make a dot on the screen!
-  ;; 2) Make your dot send an alert when you click on it
-  ;; 3) Count the number of clicks on the dot, and display the total count in top right hand corner of the screen
-  ;; 4) Listen for keypresses - w,a,s,d
-  ;; 5) Make the dot move up, down when you click a key
-  ;; 6) Make the dot move left, right when you click a key
-  ;; 7) Set up a grid
   (let [click-handler
         (fn [x]
           (swap! clicks inc)
-          #_(js/alert (gstring/format "Clicked the dot %d times." @clicks)))]
+          #_(js/alert (gstring/format "Clicked the dot %d times." @clicks)))
+        [x y] @dot-position]
     [:div
-     [:div {:style {:width 80
-                    :height 80
+     [:div {:style {:top (str y "px")
+                    :left (str x "px")
+                    :width "10px"
+                    :height "10px"
                     :background-color "purple"
                     :position "absolute"}
             :onClick click-handler}]
@@ -48,16 +35,36 @@
       "Number of clicks:" @clicks]])
   )
 
+(defn add-event-listener [event-type listener-name new-listener]
+  (let [listener-name (str "my-" event-type "-listener-" listener-name)]
+    (when-let [old-listener (aget js/window listener-name)]
+      (.removeEventListener js/window event-type old-listener))
+    (aset js/window listener-name new-listener)
+    (.addEventListener js/window event-type new-listener)))
+
+(defn my-key-listener [event]
+  (let [k (.-key event)]
+    #_(.log js/console (js-keys event))
+    (case k
+      \h (swap! dot-position (fn [p] (update p 0 #(- % 10))))
+      \j (swap! dot-position (fn [p] (update p 1 #(+ % 10))))
+      \k (swap! dot-position (fn [p] (update p 1 #(- % 10))))
+      \l (swap! dot-position (fn [p] (update p 0 #(+ % 10)))))))
+
 (defn main []
   (reagent/render [dot]
                   (.getElementById js/document "app"))
-  (js/document.addEventListener
-   "keypress"
-   (fn [event] (let [k (.-key event)]
-                 (.log js/console event)
-                 (.log js/console (js-keys event))))))
+  (add-event-listener "keypress" :hjkl my-key-listener))
 
 (main)
+
+(comment
+  (do
+    (use 'figwheel-sidecar.repl-api)
+    (start-figwheel!)
+    (cljs-repl))
+
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Some useful examples
