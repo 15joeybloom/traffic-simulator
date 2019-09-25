@@ -12,44 +12,82 @@
                       "Starting App!"
                       "\n----------------------\n"))
 
-(def clicks (reagent/atom 0))
-(def dot-position (reagent/atom [0 0]))
+(def cell-size 25)
+(def grid-size 20)
+(defn px [n] (str n "px"))
+
+;; defonce'ing each piece of page state makes it persist when you live reload
+;; the page.
+
+(defonce message (reagent/atom "Snake"))
+(defonce dot-position (reagent/atom [0 0]))
 
 (defn dot []
-  (let [click-handler
-        (fn [x]
-          (swap! clicks inc)
-          #_(js/alert (gstring/format "Clicked the dot %d times." @clicks)))
-        [x y] @dot-position]
-    [:div
-     [:div {:style {:top (str y "px")
-                    :left (str x "px")
-                    :width "10px"
-                    :height "10px"
-                    :background-color "purple"
-                    :position "absolute"}
-            :onClick click-handler}]
-     [:p {:style {:top 0
-                  :right 10
-                  :position "fixed"}}
-      "Number of clicks:" @clicks]])
-  )
+  (let [[x y] @dot-position]
+    [:div {:style {:background-color "black"
+                   :position "absolute"
+                   :width "100%"
+                   :height "100%"}}
+     [:div {:id "grid"
+            :style {:border-color "white"
+                    :border-width (px 5)
+                    :border-style "solid"
+                    :width (px (* grid-size cell-size))
+                    :height (px (* grid-size cell-size))
+
+                    ;; center the grid on the page
+                    ;;
+                    :transform "translate(-50%, -50%)"
+                    :position "absolute"
+                    :left "50%"
+                    :top "50%"}}
+      [:div {:id "dot"
+             :style {:top (px (* y cell-size))
+                     :left (px (* x cell-size))
+                     :width (px cell-size)
+                     :height (px cell-size)
+                     :background-color "purple"
+                     :position "relative"}}]]
+     [:div {:style {:top 0
+                    :margin "50px auto"
+                    :text-align "center"
+                    :font "50px Courier New"
+                    :color "white"}}
+      [:p @message]]]))
+
+(defonce listeners (reagent/atom {}))
 
 (defn add-event-listener [event-type listener-name new-listener]
-  (let [listener-name (str "my-" event-type "-listener-" listener-name)]
-    (when-let [old-listener (aget js/window listener-name)]
-      (.removeEventListener js/window event-type old-listener))
-    (aset js/window listener-name new-listener)
-    (.addEventListener js/window event-type new-listener)))
+  (when-let [old-listener (get-in @listeners [event-type listener-name])]
+    (.removeEventListener js/window event-type old-listener))
+  (swap! listeners assoc-in [event-type listener-name] new-listener)
+  (.addEventListener js/window event-type new-listener))
 
+(defonce direction (reagent/atom :right))
 (defn my-key-listener [event]
   (let [k (.-key event)]
     #_(.log js/console (js-keys event))
-    (case k
-      \h (swap! dot-position (fn [p] (update p 0 #(- % 10))))
-      \j (swap! dot-position (fn [p] (update p 1 #(+ % 10))))
-      \k (swap! dot-position (fn [p] (update p 1 #(- % 10))))
-      \l (swap! dot-position (fn [p] (update p 0 #(+ % 10)))))))
+    (reset! direction
+            (case k
+              \h :left
+              \j :down
+              \k :up
+              \l :right
+              (do (.log js/console (str "Key pressed: " k))
+                  @direction)))))
+
+(defonce timer (reagent/atom nil))
+
+(defn move []
+  (swap! dot-position
+         update
+         (if (#{:left :right} @direction) 0 1)
+         (if (#{:right :down} @direction) inc dec))
+  (when-not (every? #(< -1 % grid-size) @dot-position)
+    (js/clearInterval @timer)
+    (reset! message "Game over")))
+
+(defonce _ (reset! timer (js/setInterval move 100)))
 
 (defn main []
   (reagent/render [dot]
@@ -57,14 +95,6 @@
   (add-event-listener "keypress" :hjkl my-key-listener))
 
 (main)
-
-(comment
-  (do
-    (use 'figwheel-sidecar.repl-api)
-    (start-figwheel!)
-    (cljs-repl))
-
-  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Some useful examples
