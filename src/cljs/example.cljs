@@ -24,11 +24,11 @@
 (defn random-position []
   [(rand-int grid-size) (rand-int grid-size)])
 
-(defonce dot-position (reagent/atom [0 0]))
+(defonce snake (reagent/atom (vec (for [i (range 9 -1 -1)] [i 0]))))
 (defonce food-position (reagent/atom (random-position)))
 (defonce score (reagent/atom 0))
 
-(defn dot [{:keys [id x y color]}]
+(defn dot [{:keys [id color] [x y] :position}]
   [:div {:id "dot"
          :style {:top (px (* y cell-size))
                  :left (px (* x cell-size))
@@ -36,42 +36,38 @@
                  :height (px cell-size)
                  :background-color color
                  :position "absolute"}}])
-(defn snake []
-  (let [[dotx doty] @dot-position
-        [foodx foody] @food-position]
-    [:div {:style {:background-color "black"
-                   :position "absolute"
-                   :width "100%"
-                   :height "100%"}}
-     [:div {:id "grid"
-            :style {:border-color "white"
-                    :border-width (px 5)
-                    :border-style "solid"
-                    :width (px (* grid-size cell-size))
-                    :height (px (* grid-size cell-size))
+(defn snake-game []
+  [:div {:style {:background-color "black"
+                 :position "absolute"
+                 :width "100%"
+                 :height "100%"}}
+   [:div {:style {:top 0
+                  :margin "50px auto"
+                  :text-align "center"
+                  :font "4vw Courier New"
+                  :color "white"}}
+    [:p @message]
+    [:p "Score: " @score]]
+   (vec (concat [:div {:id "grid"
+                       :style {:border-color "white"
+                               :border-width (px 5)
+                               :border-style "solid"
+                               :width (px (* grid-size cell-size))
+                               :height (px (* grid-size cell-size))
 
-                    ;; center the grid on the page
-                    ;;
-                    :transform "translate(-50%, -50%)"
-                    :position "absolute"
-                    :left "50%"
-                    :top "50%"}}
+                               ;; center the grid on the page
+                               ;;
+                               :transform "translate(-50%, -50%)"
+                               :position "absolute"
+                               :left "50%"
+                               :top "50%"}}
 
-      [dot {:id "food"
-            :x foodx
-            :y foody
-            :color "yellow"}]
-      [dot {:id "snake"
-            :x dotx
-            :y doty
-            :color "purple"}]]
-     [:div {:style {:top 0
-                    :margin "50px auto"
-                    :text-align "center"
-                    :font "4vw Courier New"
-                    :color "white"}}
-      [:p @message]
-      [:p "Score: " @score]]]))
+                 [dot {:id "food"
+                       :position @food-position
+                       :color "yellow"}]]
+                (for [position @snake]
+                  [dot {:position position
+                        :color "purple"}])))])
 
 (defonce listeners (reagent/atom {}))
 
@@ -97,24 +93,24 @@
 (defonce timer (reagent/atom nil))
 
 (defn move []
-  (swap! dot-position
-         update
-         (if (#{:left :right} @direction) 0 1)
+  (swap! snake #(vec (cons (first %) (butlast %))))
+  (swap! snake
+         update-in
+         [0 (if (#{:left :right} @direction) 0 1)]
          (if (#{:right :down} @direction) inc dec))
-  (.log js/console (str @dot-position @food-position))
   (cond
-    (not (every? #(< -1 % grid-size) @dot-position))
+    (not (every? #(< -1 % grid-size) (first @snake)))
     (do (js/clearInterval @timer)
         (reset! message "Game over"))
 
-    (= @dot-position @food-position)
+    (= (first @snake) @food-position)
     (do (swap! score inc)
         (reset! food-position (random-position)))))
 
 (defonce _ (reset! timer (js/setInterval move 100)))
 
 (defn main []
-  (reagent/render [snake]
+  (reagent/render [snake-game]
                   (.getElementById js/document "app"))
   (add-event-listener "keypress" :hjkl my-key-listener))
 
