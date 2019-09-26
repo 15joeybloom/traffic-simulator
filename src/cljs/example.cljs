@@ -20,10 +20,25 @@
 ;; the page.
 
 (defonce message (reagent/atom "Snake"))
-(defonce dot-position (reagent/atom [0 0]))
 
-(defn dot []
-  (let [[x y] @dot-position]
+(defn random-position []
+  [(rand-int grid-size) (rand-int grid-size)])
+
+(defonce dot-position (reagent/atom [0 0]))
+(defonce food-position (reagent/atom (random-position)))
+(defonce score (reagent/atom 0))
+
+(defn dot [{:keys [id x y color]}]
+  [:div {:id "dot"
+         :style {:top (px (* y cell-size))
+                 :left (px (* x cell-size))
+                 :width (px cell-size)
+                 :height (px cell-size)
+                 :background-color color
+                 :position "absolute"}}])
+(defn snake []
+  (let [[dotx doty] @dot-position
+        [foodx foody] @food-position]
     [:div {:style {:background-color "black"
                    :position "absolute"
                    :width "100%"
@@ -41,19 +56,22 @@
                     :position "absolute"
                     :left "50%"
                     :top "50%"}}
-      [:div {:id "dot"
-             :style {:top (px (* y cell-size))
-                     :left (px (* x cell-size))
-                     :width (px cell-size)
-                     :height (px cell-size)
-                     :background-color "purple"
-                     :position "relative"}}]]
+
+      [dot {:id "food"
+            :x foodx
+            :y foody
+            :color "yellow"}]
+      [dot {:id "snake"
+            :x dotx
+            :y doty
+            :color "purple"}]]
      [:div {:style {:top 0
                     :margin "50px auto"
                     :text-align "center"
-                    :font "50px Courier New"
+                    :font "4vw Courier New"
                     :color "white"}}
-      [:p @message]]]))
+      [:p @message]
+      [:p "Score: " @score]]]))
 
 (defonce listeners (reagent/atom {}))
 
@@ -83,14 +101,20 @@
          update
          (if (#{:left :right} @direction) 0 1)
          (if (#{:right :down} @direction) inc dec))
-  (when-not (every? #(< -1 % grid-size) @dot-position)
-    (js/clearInterval @timer)
-    (reset! message "Game over")))
+  (.log js/console (str @dot-position @food-position))
+  (cond
+    (not (every? #(< -1 % grid-size) @dot-position))
+    (do (js/clearInterval @timer)
+        (reset! message "Game over"))
+
+    (= @dot-position @food-position)
+    (do (swap! score inc)
+        (reset! food-position (random-position)))))
 
 (defonce _ (reset! timer (js/setInterval move 100)))
 
 (defn main []
-  (reagent/render [dot]
+  (reagent/render [snake]
                   (.getElementById js/document "app"))
   (add-event-listener "keypress" :hjkl my-key-listener))
 
