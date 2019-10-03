@@ -1,5 +1,6 @@
 (ns myapp.example
-  (:require-macros [cljs.core.async.macros :refer [go]])
+  (:require-macros [cljs.core.async.macros :refer [go]]
+                   [cljs.macros :refer [dbg]])
   (:require [ajax.core :refer [GET POST]]
             [cljs-http.client :as http]
             [cljs.core.async :refer [<!]]
@@ -12,8 +13,7 @@
                       "Starting App!"
                       "\n----------------------\n"))
 
-(def cell-size 25)
-(def grid-size 20)
+(def cell-size 24)
 (defn px [n] (str n "px"))
 
 ;; defonce'ing each piece of page state makes it persist when you live reload
@@ -21,21 +21,30 @@
 
 (defonce message (reagent/atom "Snake"))
 
+(defonce grid-size 25)
+(def grid-positions (for [i (range grid-size)
+                          j (range grid-size)]
+                      [i j]))
 (defn random-position []
   [(rand-int grid-size) (rand-int grid-size)])
 
-(defonce snake (reagent/atom (vec (for [i (range 9 -1 -1)] [i 0]))))
-(defonce food-position (reagent/atom (random-position)))
+(defonce grid (vec (for [_ (range grid-size)]
+                     (vec (for [_ (range grid-size)]
+                            (reagent/atom :empty))))))
+
 (defonce score (reagent/atom 0))
 
-(defn dot [{:keys [id color] [x y] :position}]
-  [:div {:id "dot"
-         :style {:top (px (* y cell-size))
+(defn dot [[x y]]
+  [:div {:style {:top (px (* y cell-size))
                  :left (px (* x cell-size))
                  :width (px cell-size)
                  :height (px cell-size)
-                 :background-color color
+                 :background-color (case @(get-in grid [x y])
+                                     :empty "black"
+                                     :snake "purple"
+                                     :food "yellow")
                  :position "absolute"}}])
+
 (defn snake-game []
   [:div {:style {:background-color "black"
                  :position "absolute"
@@ -46,8 +55,7 @@
                   :text-align "center"
                   :font "4vw Courier New"
                   :color "white"}}
-    [:p @message]
-    [:p "Score: " @score]]
+    [:p @message " | Score: " @score]]
    (vec (concat [:div {:id "grid"
                        :style {:border-color "white"
                                :border-width (px 5)
@@ -60,14 +68,9 @@
                                :transform "translate(-50%, -50%)"
                                :position "absolute"
                                :left "50%"
-                               :top "50%"}}
-
-                 [dot {:id "food"
-                       :position @food-position
-                       :color "yellow"}]]
-                (for [position @snake]
-                  [dot {:position position
-                        :color "purple"}])))])
+                               :top "50%"}}]
+                (for [p grid-positions]
+                  [dot p])))])
 
 (defonce listeners (reagent/atom {}))
 
@@ -77,39 +80,58 @@
   (swap! listeners assoc-in [event-type listener-name] new-listener)
   (.addEventListener js/window event-type new-listener))
 
-(defonce direction (reagent/atom :right))
+(defonce desired-direction (reagent/atom :right))
+
+(def key-map {\h :left
+              \j :down
+              \k :up
+              \l :right})
 (defn my-key-listener [event]
   (let [k (.-key event)]
     #_(.log js/console (js-keys event))
-    (reset! direction
-            (case k
-              \h :left
-              \j :down
-              \k :up
-              \l :right
-              (do (.log js/console (str "Key pressed: " k))
-                  @direction)))))
+    (if (contains? key-map k)
+      (reset! desired-direction (key-map k))
+      (.log js/console (str "Not in key map: "k)))))
 
 (defonce timer (reagent/atom nil))
 
-(defn move []
-  (swap! snake #(vec (cons (first %) (butlast %))))
-  (swap! snake
-         update-in
-         [0 (if (#{:left :right} @direction) 0 1)]
-         (if (#{:right :down} @direction) inc dec))
-  (cond
-    (not (every? #(< -1 % grid-size) (first @snake)))
-    (do (js/clearInterval @timer)
-        (reset! message "Game over"))
+(defonce current-direction (reagent/atom :right))
+(defonce snake (reagent/atom (vec (for [i (range 9 -1 -1)] [i 0]))))
+(defonce food-position (reagent/atom (random-position)))
 
-    (= (first @snake) @food-position)
-    (do (swap! score inc)
-        (reset! food-position (random-position)))))
+(defn move []
+  (let [desired-direction-val @desired-direction
+        current-direction-val @current-direction
+        next-direction (if (or (and (#{:left :right} desired-direction-val)
+                                    (#{:left :right} current-direction-val))
+                               (and (#{:up :down} desired-direction-val)
+                                    (#{:up :down} current-direction-val)))
+                         current-direction-val
+                         desired-direction-val)
+        coordinate-to-update (if (#{:left :right} next-direction) 0 1)
+        how-to-update (if (#{:right :down} next-direction) inc dec)
+        [old-snake new-snake]
+        (swap-vals! snake #(vec (cons (update (first %)
+                                              coordinate-to-update
+                                              how-to-update)
+                                      (butlast %))))]
+    (reset! current-direction next-direction)
+    (if (not (every? #(< -1 % grid-size) (first new-snake)))
+      (do (js/clearInterval @timer)
+          (reset! message "Game over"))
+      (do (reset! (get-in grid (last old-snake)) :empty)
+          (reset! (get-in grid (first new-snake)) :snake)
+          (when (= (first new-snake) @food-position)
+            (do (swap! score inc)
+                (reset! food-position (random-position))))))))
 
 (defonce _ (reset! timer (js/setInterval move 100)))
 
 (defn main []
+  ;; draw the initial snake
+  (doseq [p @snake]
+    (reset! (get-in grid p) :snake))
+
   (reagent/render [snake-game]
                   (.getElementById js/document "app"))
   (add-event-listener "keypress" :hjkl my-key-listener))

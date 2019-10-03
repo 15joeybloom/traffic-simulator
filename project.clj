@@ -56,8 +56,7 @@
   ;; Compilation/build for CLJS
   :cljsbuild
   {:builds
-   {
-    :dev {:source-paths ["src/cljs"]
+   {:dev {:source-paths ["src/cljs"]
           :figwheel {:open-urls ["http://localhost:3449/example"]}
           :compiler {:main myapp.example
                      :asset-path "js/compiled/out"
@@ -78,9 +77,7 @@
                          :output-dir
                          "resources/public/js/compiled/out_cljs_reframe"
                          :source-map true
-                         :source-map-timestamp true}}}
-
-   }
+                         :source-map-timestamp true}}}}
 
   ;; Profiles - handy for switching between CLJS projects
   :profiles {:dev {:dependencies [[binaryage/devtools "0.9.10"]
