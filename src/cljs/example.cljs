@@ -119,18 +119,21 @@
     (if (not (every? #(< -1 % grid-size) (first new-snake)))
       (do (js/clearInterval @timer)
           (reset! message "Game over"))
-      (do (reset! (get-in grid (last old-snake)) :empty)
-          (reset! (get-in grid (first new-snake)) :snake)
-          (when (= (first new-snake) @food-position)
-            (do (swap! score inc)
-                (reset! food-position (random-position))))))))
+      (do (when (= (first new-snake) @food-position)
+            (swap! score inc)
+            (reset! (get-in grid @food-position) :empty)
+            (reset! food-position (random-position))
+            (reset! (get-in grid @food-position) :food))
+          (reset! (get-in grid (last old-snake)) :empty)
+          (reset! (get-in grid (first new-snake)) :snake)))))
 
 (defonce _ (reset! timer (js/setInterval move 100)))
 
 (defn main []
-  ;; draw the initial snake
+  ;; draw the initial state
   (doseq [p @snake]
     (reset! (get-in grid p) :snake))
+  (reset! (get-in grid @food-position) :food)
 
   (reagent/render [snake-game]
                   (.getElementById js/document "app"))
