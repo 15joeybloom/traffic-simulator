@@ -1,13 +1,9 @@
-(ns myapp.example
+(ns cljs.snake
   (:require-macros [cljs.core.async.macros :refer [go]]
                    [cljs.macros :refer [dbg]])
-  (:require [ajax.core :refer [GET POST]]
-            [cljs-http.client :as http]
-            [cljs.core.async :refer [<!]]
-            [goog.string :as gstring]
+  (:require [goog.string :as gstring]
             [goog.string.format]
-            [reagent.core :as reagent]
-            [sablono.core :as sab]))
+            [reagent.core :as reagent]))
 
 (.log js/console (str "----------------------\n"
                       "Starting App!"
@@ -163,7 +159,8 @@
 ;; How to add an onClick handler
 ;; [:div {:onClick (fn [x] (js/alert "Hello!"))}]
 
-;; How to add a keypress listener - be careful -- you might end up adding multiple at once!
+;; How to add a keypress listener - be careful -- you might end up adding
+;; multiple at once!
 ;;    note: the listener is a function that takes a single argument
 ;;          if you want to "see" the argument, you can use
 ;;           (.log js/console event)
