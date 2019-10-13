@@ -95,6 +95,11 @@
 (defonce snake (reagent/atom (vec (for [i (range 9 -1 -1)] [i 0]))))
 (defonce food-position (reagent/atom (random-position)))
 
+(defn render []
+  (doseq [p @snake]
+    (reset! (get-in grid p) :snake))
+  (reset! (get-in grid @food-position) :food))
+
 (defn move []
   (let [desired-direction-val @desired-direction
         current-direction-val @current-direction
@@ -106,30 +111,28 @@
                          desired-direction-val)
         coordinate-to-update (if (#{:left :right} next-direction) 0 1)
         how-to-update (if (#{:right :down} next-direction) inc dec)
-        [old-snake new-snake]
+        [old-snake grown-snake]
         (swap-vals! snake #(vec (cons (update (first %)
                                               coordinate-to-update
                                               how-to-update)
-                                      (butlast %))))]
+                                      %)))]
+    (if (= (first grown-snake) @food-position)
+      (do (swap! score inc)
+          (reset! (get-in grid @food-position) :empty)
+          (reset! food-position (random-position))
+          (reset! (get-in grid @food-position) :food))
+      (do (swap! snake butlast)
+          (reset! (get-in grid (last grown-snake)) :empty)))
     (reset! current-direction next-direction)
-    (if (not (every? #(< -1 % grid-size) (first new-snake)))
+    (if (not (every? #(< -1 % grid-size) (first grown-snake)))
       (do (js/clearInterval @timer)
           (reset! message "Game over"))
-      (do (when (= (first new-snake) @food-position)
-            (swap! score inc)
-            (reset! (get-in grid @food-position) :empty)
-            (reset! food-position (random-position))
-            (reset! (get-in grid @food-position) :food))
-          (reset! (get-in grid (last old-snake)) :empty)
-          (reset! (get-in grid (first new-snake)) :snake)))))
+      (render))))
 
 (defonce _ (reset! timer (js/setInterval move 100)))
 
 (defn main []
-  ;; draw the initial state
-  (doseq [p @snake]
-    (reset! (get-in grid p) :snake))
-  (reset! (get-in grid @food-position) :food)
+  (render)
 
   (reagent/render [snake-game]
                   (.getElementById js/document "app"))
