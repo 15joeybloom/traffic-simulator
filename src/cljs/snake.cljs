@@ -17,7 +17,7 @@
 
 (defonce message (reagent/atom "Snake"))
 
-(defonce grid-size 25)
+(defonce grid-size 15)
 (def grid-positions (for [i (range grid-size)
                           j (range grid-size)]
                       [i j]))
@@ -81,7 +81,11 @@
 (def key-map {\h :left
               \j :down
               \k :up
-              \l :right})
+              \l :right
+              \w :up
+              \a :left
+              \s :down
+              \d :right})
 (defn my-key-listener [event]
   (let [k (.-key event)]
     #_(.log js/console (js-keys event))
