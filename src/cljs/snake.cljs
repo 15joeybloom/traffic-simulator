@@ -99,10 +99,12 @@
 (defonce snake (reagent/atom (vec (for [i (range 9 -1 -1)] [i 0]))))
 (defonce food-position (reagent/atom (random-position)))
 
-(defn render []
-  (doseq [p @snake]
+(defn render [old-snake new-snake food-position]
+  (doseq [p old-snake]
+    (reset! (get-in grid p) :empty))
+  (doseq [p new-snake]
     (reset! (get-in grid p) :snake))
-  (reset! (get-in grid @food-position) :food))
+  (reset! (get-in grid food-position) :food))
 
 (defn move []
   (let [desired-direction-val @desired-direction
@@ -122,21 +124,18 @@
                                       %)))]
     (if (= (first grown-snake) @food-position)
       (do (swap! score inc)
-          (reset! (get-in grid @food-position) :empty)
-          (reset! food-position (random-position))
-          (reset! (get-in grid @food-position) :food))
-      (do (swap! snake butlast)
-          (reset! (get-in grid (last grown-snake)) :empty)))
+          (reset! food-position (random-position)))
+      (swap! snake butlast))
     (reset! current-direction next-direction)
     (if (not (every? #(< -1 % grid-size) (first grown-snake)))
       (do (js/clearInterval @timer)
           (reset! message "Game over"))
-      (render))))
+      (render old-snake @snake @food-position))))
 
 (defonce _ (reset! timer (js/setInterval move 100)))
 
 (defn main []
-  (render)
+  (render [] @snake @food-position)
 
   (reagent/render [snake-game]
                   (.getElementById js/document "app"))
