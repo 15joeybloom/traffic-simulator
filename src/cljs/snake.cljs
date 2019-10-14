@@ -70,7 +70,7 @@
 
 (defonce listeners (reagent/atom {}))
 
-(defn add-event-listener [event-type listener-name new-listener]
+(defn add-event-listener! [event-type listener-name new-listener]
   (when-let [old-listener (get-in @listeners [event-type listener-name])]
     (.removeEventListener js/window event-type old-listener))
   (swap! listeners assoc-in [event-type listener-name] new-listener)
@@ -99,14 +99,14 @@
 (defonce snake (reagent/atom (vec (for [i (range 9 -1 -1)] [i 0]))))
 (defonce food-position (reagent/atom (random-position)))
 
-(defn render [old-snake new-snake food-position]
+(defn render! [old-snake new-snake food-position]
   (doseq [p old-snake]
     (reset! (get-in grid p) :empty))
   (doseq [p new-snake]
     (reset! (get-in grid p) :snake))
   (reset! (get-in grid food-position) :food))
 
-(defn move []
+(defn move! []
   (let [desired-direction-val @desired-direction
         current-direction-val @current-direction
         next-direction (if (or (and (#{:left :right} desired-direction-val)
@@ -130,16 +130,16 @@
     (if (not (every? #(< -1 % grid-size) (first grown-snake)))
       (do (js/clearInterval @timer)
           (reset! message "Game over"))
-      (render old-snake @snake @food-position))))
+      (render! old-snake @snake @food-position))))
 
-(defonce _ (reset! timer (js/setInterval move 100)))
+(defonce _ (reset! timer (js/setInterval move! 100)))
 
 (defn main []
-  (render [] @snake @food-position)
+  (render! [] @snake @food-position)
 
   (reagent/render [snake-game]
                   (.getElementById js/document "app"))
-  (add-event-listener "keypress" :hjkl my-key-listener))
+  (add-event-listener! "keypress" :hjkl my-key-listener))
 
 (main)
 
