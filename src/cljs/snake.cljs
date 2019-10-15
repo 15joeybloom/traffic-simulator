@@ -17,16 +17,21 @@
 
 (defonce message (reagent/atom "Snake"))
 
-(defonce grid-size 15)
-(def grid-positions (for [i (range grid-size)
-                          j (range grid-size)]
+(defonce board-size 15)
+(defonce grid-size (+ board-size 2))
+(def grid-positions (for [i (range -1 (dec grid-size))
+                          j (range -1 (dec grid-size))]
                       [i j]))
-(defn random-position []
-  [(rand-int grid-size) (rand-int grid-size)])
 
-(defonce grid (vec (for [_ (range grid-size)]
-                     (vec (for [_ (range grid-size)]
-                            (reagent/atom :empty))))))
+(defonce grid (apply merge-with merge (for [[x y] grid-positions]
+                                        {x {y (reagent/atom :empty)}})))
+(def get-cell (partial get-in grid))
+
+(defn random-food-position []
+  (->> #(vector (rand-int board-size) (rand-int board-size))
+       repeatedly
+       (drop-while (comp (partial = :snake) deref get-cell))
+       first))
 
 (defonce score (reagent/atom 0))
 
@@ -35,8 +40,8 @@
                  :left (px (* x cell-size))
                  :width (px cell-size)
                  :height (px cell-size)
-                 :background-color (case @(get-in grid [x y])
-                                     :empty "black"
+                 :background-color (case @(get-cell [x y])
+                                     :empty "rgba(0, 0, 0, 0)"
                                      :snake "purple"
                                      :food "yellow")
                  :position "absolute"}}])
@@ -56,8 +61,8 @@
                        :style {:border-color "white"
                                :border-width (px 5)
                                :border-style "solid"
-                               :width (px (* grid-size cell-size))
-                               :height (px (* grid-size cell-size))
+                               :width (px (* board-size cell-size))
+                               :height (px (* board-size cell-size))
 
                                ;; center the grid on the page
                                ;;
@@ -97,14 +102,26 @@
 
 (defonce current-direction (reagent/atom :right))
 (defonce snake (reagent/atom (vec (for [i (range 9 -1 -1)] [i 0]))))
-(defonce food-position (reagent/atom (random-position)))
+(defonce food-position (reagent/atom nil))
 
-(defn render! [old-snake new-snake food-position]
+(defn render! [old-snake new-snake]
   (doseq [p old-snake]
-    (reset! (get-in grid p) :empty))
+    (reset! (get-cell p) :empty))
   (doseq [p new-snake]
-    (reset! (get-in grid p) :snake))
-  (reset! (get-in grid food-position) :food))
+    (reset! (get-cell p) :snake)))
+
+(defn grow-snake! [f]
+  "Grow the snake from its head. The location of the new head is the result of
+  applying `f` to the current head. Returns the coordinates of the new head."
+  (let [[new-head] (swap! snake #(vec (cons (f (first %)) %)))]
+    (reset! (get-cell new-head) :snake)
+    new-head))
+
+(defn shrink-snake! []
+  "Shrink the snake from its tail."
+  (let [[old-snake] (swap-vals! snake butlast)]
+    (reset! (get-cell (last old-snake)) :empty)
+    nil))
 
 (defn move! []
   (let [desired-direction-val @desired-direction
@@ -117,25 +134,23 @@
                          desired-direction-val)
         coordinate-to-update (if (#{:left :right} next-direction) 0 1)
         how-to-update (if (#{:right :down} next-direction) inc dec)
-        [old-snake grown-snake]
-        (swap-vals! snake #(vec (cons (update (first %)
-                                              coordinate-to-update
-                                              how-to-update)
-                                      %)))]
-    (if (= (first grown-snake) @food-position)
+        new-head (grow-snake! #(update % coordinate-to-update how-to-update))]
+    (if (= new-head @food-position)
       (do (swap! score inc)
-          (reset! food-position (random-position)))
-      (swap! snake butlast))
+          (reset! food-position (random-food-position))
+          (reset! (get-cell @food-position) :food))
+      (shrink-snake!))
     (reset! current-direction next-direction)
-    (if (not (every? #(< -1 % grid-size) (first grown-snake)))
+    (when (not (every? #(< -1 % board-size) new-head))
       (do (js/clearInterval @timer)
-          (reset! message "Game over"))
-      (render! old-snake @snake @food-position))))
+          (reset! message "Game over")))))
 
 (defonce _ (reset! timer (js/setInterval move! 100)))
 
 (defn main []
-  (render! [] @snake @food-position)
+  (render! [] @snake)
+  (reset! food-position (random-food-position))
+  (reset! (get-cell @food-position) :food)
 
   (reagent/render [snake-game]
                   (.getElementById js/document "app"))
