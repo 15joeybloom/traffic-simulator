@@ -112,10 +112,10 @@
 
 (defn grow-snake! [f]
   "Grow the snake from its head. The location of the new head is the result of
-  applying `f` to the current head. Returns the coordinates of the new head."
+  applying `f` to the current head. Returns the coordinates of the new head and
+  the cell contents before the new head was there."
   (let [[new-head] (swap! snake #(vec (cons (f (first %)) %)))]
-    (reset! (get-cell new-head) :snake)
-    new-head))
+    [new-head (first (reset-vals! (get-cell new-head) :snake))]))
 
 (defn shrink-snake! []
   "Shrink the snake from its tail."
@@ -134,8 +134,9 @@
                          desired-direction-val)
         coordinate-to-update (if (#{:left :right} next-direction) 0 1)
         how-to-update (if (#{:right :down} next-direction) inc dec)
-        new-head (grow-snake! #(update % coordinate-to-update how-to-update))]
-    (if (= new-head @food-position)
+        [new-head what-we-ate]
+        (grow-snake! #(update % coordinate-to-update how-to-update))]
+    (if (= what-we-ate :food)
       (do (swap! score inc)
           (reset! food-position (random-food-position))
           (reset! (get-cell @food-position) :food))
