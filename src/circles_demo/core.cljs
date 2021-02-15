@@ -1,42 +1,178 @@
 (ns circles-demo.core
+  "A bunch of cars driving in a circle"
   (:require
-    [quil.core :as q]
-    [quil.middleware :as m]
-    [reagent.core :as r]))
+   [quil.core :as q]
+   [quil.middleware :as m]
+   [reagent.core :as r]))
 
-(defn draw [{:keys [circles]}]
-  (q/background 255)
-  (doseq [{[x y] :pos [r g b] :color} circles]
-    (q/fill r g b)
-    (q/ellipse x y 10 10)))
+(def pi Math/PI)
 
-(defn update-state [{:keys [width height] :as state}]
-  (update state :circles conj {:pos   [(+ 20 (rand-int (- width 40)))
-                                       (+ 20 (rand-int (- height 40)))]
-                               :color (repeatedly 3 #(rand-int 250))}))
+(def frame-rate
+  "Frames per second"
+  60)
+
+(def speed-limit
+  "Speed limit is 100 kph = 27.778 m/s"
+  27.778)
+
+(def road-radius
+  "Cars can deal with about 1 g of lateral acceleration.
+
+   Remembering my high school physics...
+   https://courses.lumenlearning.com/physics/chapter/6-3-centripetal-force/
+
+   a_c = v^2 / r
+   =>
+   r = v^2 / a_c
+     = (100 km / h)^2 / (9.8 m / s^2)
+     = (100000/3600 m / s)^2 / (9.8 m / s^2)
+     = (771.605 m^2 / s^2) / (9.8 m / s^2)
+     = 78.7 m"
+  78.7)
+
+(def road-length
+  (* 2 pi road-radius))
+
+(def reaction-time
+  (r/atom 0.3))
+
+(def comfortable-brake
+  "Comfortable braking acceleration in m/s^2
+  https://copradar.com/chapts/references/acceleration.html"
+  4.6)
+
+(def max-brake
+  "The fastest a typical car can possibly brake is 0.8 g = 7.8 m/s^2
+  https://copradar.com/chapts/references/acceleration.html"
+  7.8)
+
+(def max-acceleration
+  "VW Passat can accelerate as fast as about 14 kph/s = 4 m/s^2
+  https://accelerationtimes.com/models/vw-passat-variant-2-0-tdi"
+  4)
+
+(def lane-width
+  "https://en.wikipedia.org/wiki/Lane#Lane_width"
+  3.7)
+
+(def car-width
+  "https://en.wikipedia.org/wiki/Volkswagen_Passat_(B8)"
+  1.83)
+
+(defn draw [{:keys [width height cars]}]
+  (q/background 0 255 50)
+  (let [center-x (/ width 2)
+        center-y (/ height 2)
+        road-radius-px (* 0.8 (min center-x center-y))
+        m->px (/ road-radius-px road-radius)
+        road-width-px (* m->px lane-width)]
+    (q/fill 0 0) ;; road circle fill is transparent
+    (q/stroke-weight road-width-px)
+    (q/stroke 200) ;; gray road
+    (q/ellipse center-x center-y (* road-radius-px 2) (* road-radius-px 2))
+    (doseq [{:keys [id position]} cars
+            :let [x (+ center-x
+                       (* road-radius-px
+                          (Math/cos (* 2 pi (/ position road-length)))))
+                  y (+ center-y
+                       (* road-radius-px
+                          (Math/sin (* 2 pi (/ position road-length)))))]]
+      (q/stroke-weight 0)
+      (q/fill 255 0 0) ;; red cars
+      (q/ellipse x y (* m->px car-width) (* m->px car-width))
+      (q/fill 0) ;; black text
+      (q/text-num id x (+ y 20)))))
+
+(defn conj-history
+  "Add an item to the history, pushing old items out if the history is
+  full."
+  [{:keys [size-fn items] :as history} item]
+  (let [size (size-fn)
+        items' (conj items item)]
+    (assoc history :items (if (> (count items') size)
+                            (vec (take-last size items'))
+                            items'))))
+
+(defn stopping-distance
+  "https://en.wikipedia.org/wiki/Braking_distance#Rules_of_thumb"
+  [velocity]
+  (let [x (/ velocity 10)]
+    (* x (+ x 3))))
+
+(defn update-car
+  [t dt
+   {:keys [id position velocity acceleration history] :as car}
+   {next-car :history next-id :id}]
+  (let [position' (mod (+ position (* velocity dt)) road-length)
+        velocity' (max (+ velocity (* acceleration dt)) 0)
+        d (mod (- (:position (first (:items next-car)))
+                  (:position (first (:items history))))
+               road-length)
+        d' (mod (- (:position (last (:items next-car)))
+                   (:position (last (:items history))))
+                road-length)
+        dd (- d' d)
+        acceleration'
+        (cond (< d' (stopping-distance velocity)) (- comfortable-brake)
+              (> velocity speed-limit) -1
+              (< velocity speed-limit) max-acceleration
+              :else 0)]
+    (-> car
+        (assoc :acceleration acceleration'
+               :velocity velocity'
+               :position position')
+        (update :history conj-history {:t t :position position'}))))
+
+(defn rotate
+  "Stick the first element of `coll` at the end"
+  [[x & xs]]
+  (concat xs [x]))
+
+(defn update-state [{:keys [t width height cars] :as state}]
+  (let [t' (/ (q/frame-count) frame-rate)
+        dt (- t' t)
+        cars' (map (partial update-car t' dt) (rotate cars) cars)]
+    (println (map (comp int :velocity) cars'))
+    (assoc state :t t' :cars cars')))
+
+(defn reaction-time-history-size []
+  (int (* @reaction-time frame-rate)))
+
+(def initial-cars
+  (vec (for [i (range 45)
+             :let [x (- (rand) (* 10 i))]]
+         {:id i
+          :position x ; m along the circular road
+          :velocity 20 ; m/s
+          :acceleration 0 ; m/s^s
+          :history {:size-fn reaction-time-history-size
+                    :items [{:t 0 :position x}]}
+          })))
 
 (defn init [width height]
   (fn []
-    {:width   width
-     :height  height
-     :circles []}))
+    (q/frame-rate frame-rate)
+    {:t 0
+     :width width
+     :height height
+     :cars initial-cars}))
 
 (defn canvas []
   (r/create-class
-    {:component-did-mount
-     (fn [component]
-       (let [node (r/dom-node component)
-             width (/ (.-innerWidth js/window) 2)
-             height (/ (.-innerHeight js/window) 2)]
-         (q/sketch
-           :host node
-           :draw draw
-           :setup (init width height)
-           :update update-state
-           :size [width height]
-           :middleware [m/fun-mode])))
-     :render
-     (fn [] [:div])}))
+   {:component-did-mount
+    (fn [component]
+      (let [node (r/dom-node component)
+            width (* (.-innerWidth js/window) 0.5)
+            height (* (.-innerHeight js/window) 0.7)]
+        (q/sketch
+         :host node
+         :draw draw
+         :setup (init width height)
+         :update update-state
+         :size [width height]
+         :middleware [m/fun-mode])))
+    :render
+    (fn [] [:div])}))
 
 (defn home-page []
   (r/with-let [running? (r/atom false)]
