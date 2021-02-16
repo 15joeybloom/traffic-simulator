@@ -111,13 +111,10 @@
   (let [x (/ velocity 10)]
     (* x (+ x 3))))
 
-(defn update-car
-  [t dt
-   {:keys [id position velocity acceleration history] :as car}
-   {next-car :history next-id :id}]
-  (let [position' (mod (+ position (* velocity dt)) road-length)
-        velocity' (max (+ velocity (* acceleration dt)) 0)
-        d (mod (- (:position (first (:items next-car)))
+(defn update-acceleration
+  [{:keys [position velocity acceleration history] :as car}
+   {next-car :history}]
+  (let [d (mod (- (:position (first (:items next-car)))
                   (:position (first (:items history))))
                road-length)
         d' (mod (- (:position (last (:items next-car)))
@@ -129,22 +126,40 @@
               (> velocity speed-limit) -1
               (< velocity speed-limit) max-acceleration
               :else 0)]
-    (-> car
-        (assoc :acceleration acceleration'
-               :velocity velocity'
-               :position position')
-        (update :history conj-history {:t t :position position'}))))
+    #(assoc % :acceleration acceleration')))
+
+(defn simulate-physics [dt {:keys [position velocity acceleration]}]
+  ;; I know it seems like we're passing the car as an argument twice, once in
+  ;; the simulate-physics arguments and again in the function literal. But this
+  ;; allows us to separate the calculation of the necessary state change from
+  ;; the state change itself. We want to calculate the state changes all from
+  ;; the same initial state and only then apply the changes.
+  #(assoc %
+          :velocity (max (+ velocity (* acceleration dt)) 0)
+          :position (mod (+ position (* velocity dt)) road-length)))
+
+(defn update-history [t {:keys [position]}]
+  #(update % :history conj-history {:t t :position position}))
 
 (defn rotate
   "Stick the first element of `coll` at the end"
   [[x & xs]]
   (concat xs [x]))
 
-(defn update-state [{:keys [t width height cars] :as state}]
+(defn update-state [{:keys [t cars] :as state}]
   (let [t' (/ (q/frame-count) frame-rate)
-        dt (- t' t)
-        cars' (map (partial update-car t' dt) (rotate cars) cars)]
-    (assoc state :t t' :cars cars')))
+        dt (- t' t)]
+    (assoc state
+           :t t'
+           :cars (map (fn [car next-car]
+                        (-> car
+                            ;; order of these updates shouldn't matter; they're
+                            ;; updating different fields and using the same
+                            ;; initial state.
+                            ((simulate-physics dt car))
+                            ((update-history t car))
+                            ((update-acceleration car next-car))))
+                      (rotate cars) cars))))
 
 (defn reaction-time-history-size []
   (int (* @reaction-time frame-rate)))
@@ -157,8 +172,7 @@
           :velocity 10 ; m/s
           :acceleration 0 ; m/s^s
           :history {:size-fn reaction-time-history-size
-                    :items [{:t 0 :position x}]}
-          })))
+                    :items [{:t 0 :position x}]}})))
 
 (defn init [width height]
   (fn []
