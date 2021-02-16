@@ -1,9 +1,10 @@
 (ns circles-demo.core
   "A bunch of cars driving in a circle"
-  (:require
-   [quil.core :as q]
-   [quil.middleware :as m]
-   [reagent.core :as r]))
+  (:require [goog.string :as gstring]
+            [goog.string.format]
+            [quil.core :as q]
+            [quil.middleware :as m]
+            [reagent.core :as r]))
 
 (def pi Math/PI)
 
@@ -59,18 +60,24 @@
   "https://en.wikipedia.org/wiki/Volkswagen_Passat_(B8)"
   1.83)
 
+(def background-color
+  [190 255 50])
+
+(defn html-color [[r g b]]
+  (gstring/format "rgb(%s,%s,%s)" r g b))
+
 (defn draw [{:keys [width height cars]}]
-  (q/background 0 255 50)
   (let [center-x (/ width 2)
         center-y (/ height 2)
         road-radius-px (* 0.8 (min center-x center-y))
         m->px (/ road-radius-px road-radius)
         road-width-px (* m->px lane-width)]
+    (apply q/background background-color)
     (q/fill 0 0) ;; road circle fill is transparent
     (q/stroke-weight road-width-px)
     (q/stroke 200) ;; gray road
     (q/ellipse center-x center-y (* road-radius-px 2) (* road-radius-px 2))
-    (doseq [{:keys [id position]} cars
+    (doseq [{:keys [id position velocity]} cars
             :let [x (+ center-x
                        (* road-radius-px
                           (Math/cos (* 2 pi (/ position road-length)))))
@@ -78,7 +85,12 @@
                        (* road-radius-px
                           (Math/sin (* 2 pi (/ position road-length)))))]]
       (q/stroke-weight 0)
-      (q/fill 255 0 0) ;; red cars
+      (if (< (+ velocity 5) speed-limit)
+        ;; blue if car is slower than speed limit, i.e. "stuck in traffic"
+        (q/fill 0 0 255)
+        ;; red if car is near speed limit
+        (q/fill 255 0 0)
+        )
       (q/ellipse x y (* m->px car-width) (* m->px car-width))
       (q/fill 0) ;; black text
       (q/text-num id x (+ y 20)))))
@@ -162,8 +174,8 @@
    {:component-did-mount
     (fn [component]
       (let [node (r/dom-node component)
-            width (* (.-innerWidth js/window) 0.5)
-            height (* (.-innerHeight js/window) 0.7)]
+            width (.-innerWidth js/window)
+            height (.-innerHeight js/window)]
         (q/sketch
          :host node
          :draw draw
@@ -172,15 +184,25 @@
          :size [width height]
          :middleware [m/fun-mode])))
     :render
-    (fn [] [:div])}))
+    (fn [] [:div {:style {:position "absolute"
+                          :top 0
+                          :bottom 0
+                          :left 0
+                          :right 0}}])}))
 
 (defn home-page []
   (r/with-let [running? (r/atom false)]
-    [:div
-     [:h3 "circles demo"]
-     [:div>button
-      {:on-click #(swap! running? not)}
-      (if @running? "stop" "start")]
+    [:div {:style {:position "absolute"
+                   :top 0
+                   :bottom 0
+                   :left 0
+                   :right 0
+                   :background-color (html-color background-color)
+                   }}
+     [:div {:style {:position "absolute"
+                    :z-index 1}}
+      [:button {:on-click #(swap! running? not)}
+       (if @running? "stop" "start")]]
      (when @running?
        [canvas])]))
 
