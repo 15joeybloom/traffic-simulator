@@ -144,18 +144,17 @@
   (let [t' (/ (q/frame-count) frame-rate)
         dt (- t' t)
         cars' (map (partial update-car t' dt) (rotate cars) cars)]
-    (println (map (comp int :velocity) cars'))
     (assoc state :t t' :cars cars')))
 
 (defn reaction-time-history-size []
   (int (* @reaction-time frame-rate)))
 
 (def initial-cars
-  (vec (for [i (range 45)
+  (vec (for [i (range 40)
              :let [x (- (rand) (* 10 i))]]
          {:id i
           :position x ; m along the circular road
-          :velocity 20 ; m/s
+          :velocity 10 ; m/s
           :acceleration 0 ; m/s^s
           :history {:size-fn reaction-time-history-size
                     :items [{:t 0 :position x}]}
@@ -190,6 +189,13 @@
                           :left 0
                           :right 0}}])}))
 
+(defn slider [ratom min max]
+  [:input {:type "range" :value @ratom :min min :max max :step 0.01
+           :on-change (fn [e]
+                        (let [new-value (js/parseFloat (.. e -target -value))]
+                          (reset! ratom new-value)
+                          (print (reaction-time-history-size))))}])
+
 (defn home-page []
   (r/with-let [running? (r/atom false)]
     [:div {:style {:position "absolute"
@@ -197,12 +203,14 @@
                    :bottom 0
                    :left 0
                    :right 0
-                   :background-color (html-color background-color)
-                   }}
+                   :background-color (html-color background-color)}}
      [:div {:style {:position "absolute"
                     :z-index 1}}
       [:button {:on-click #(swap! running? not)}
-       (if @running? "stop" "start")]]
+       (if @running? "stop" "start")]
+      [:br]
+      "Reaction time: " @reaction-time "s"
+      [slider reaction-time 0.0 5.0]]
      (when @running?
        [canvas])]))
 
