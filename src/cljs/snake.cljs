@@ -9,33 +9,12 @@
                       "Starting App!"
                       "\n----------------------\n"))
 
-(def cell-size 24)
-(defn px [n] (str n "px"))
-
 ;; defonce'ing each piece of page state makes it persist when you live reload
 ;; the page.
 
-(defonce message (reagent/atom "Snake"))
+(defonce car (reagent/atom 0))
 
-(defonce board-size 15)
-(defonce grid-size (+ board-size 2))
-(def grid-positions (for [i (range -1 (dec grid-size))
-                          j (range -1 (dec grid-size))]
-                      [i j]))
-
-(defonce grid (apply merge-with merge (for [[x y] grid-positions]
-                                        {x {y (reagent/atom :empty)}})))
-(def get-cell (partial get-in grid))
-
-(defn random-food-position []
-  (->> #(vector (rand-int board-size) (rand-int board-size))
-       repeatedly
-       (drop-while (comp (partial = :snake) deref get-cell))
-       first))
-
-(defonce score (reagent/atom 0))
-
-(defn dot [[x y]]
+(defn car [[x y]]
   [:div {:style {:top (px (* y cell-size))
                  :left (px (* x cell-size))
                  :width (px cell-size)
